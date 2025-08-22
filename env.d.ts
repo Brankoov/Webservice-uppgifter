@@ -1,5 +1,8 @@
-declare namespace NodeJs {
+declare namespace NodeJS {
     interface ProcessEnv{
-        MY_GLOBAL_TEST_SECRET: string | undefined
+        PORT?: string;
+        MY_GLOBAL_TEST_SECRET?: string;
+        DB_CONNECTION_STRING?: string;
+        DB_NAME?: string;
     }
 }
