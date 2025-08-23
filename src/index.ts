@@ -13,6 +13,7 @@ const secret = validateSecret(process.env.MY_GLOBAL_TEST_SECRET);
 interface User {
   id: number;
   name: string;
+  email: string;
 }
 
 app.get("/", (req, res) => {
@@ -30,12 +31,13 @@ app.get("/users", async (_req, res) => {
     const users = await getDB().collection("users").find({}).toArray();
     res.json(users);
   } catch (e) {
+    console.error("GET /users error:", e); // <-- NYTT: logga
     res.status(500).send("db error");
   }
 });
 
-// Uppgift #4: dynamisk path-parameter :id (req = input, res = output)
-// + Uppgift #5: returnera direkt vid fel för att inte svara två gånger
+// Dynamisk path-parameter :id (req = input, res = output)
+// + returnera direkt vid fel (undvik multiple responses)
 app.get("/users/:id", async (req, res) => {
   const id = Number(req.params.id); // casting string -> number
   if (isNaN(id)) return res.status(400).send("id must be a number");
@@ -44,34 +46,49 @@ app.get("/users/:id", async (req, res) => {
     const user = await getDB().collection("users").findOne({ id });
     if (!user) return res.status(404).send("not found");
     return res.json(user);
-  } catch {
+  } catch (e) {
+    console.error("GET /users/:id error:", e); // <-- NYTT: logga
     return res.status(500).send("db error");
   }
 });
 
-// Skapa user via body: { "id": 42, "name": "Anna" }
+// Skapa user via body: { "id": 42, "name": "Anna" } kräver eller genererar en unik emai
 app.post("/users", async (req, res) => {
-  const { id, name } = req.body as Partial<User>;
+  const { id, name, email } = req.body as Partial<User>;
   if (typeof id !== "number" || typeof name !== "string") {
     return res.status(400).send("invalid payload");
   }
+  const finalEmail =
+    typeof email === "string" && email.length > 0
+      ? email
+      : `user${id}@demo.local`; // enkel unik fallback baserat på id
+
   try {
-    await getDB().collection("users").insertOne({ id, name });
+    await getDB().collection("users").insertOne({ id, name, email: finalEmail });
     return res.status(201).send("created");
-  } catch {
+  } catch (e) {
+    console.error("POST /users insert error:", e);
     return res.status(500).send("db error");
   }
 });
 
-// Uppgift #6: enkel endpoint som skickar 201 med en User i svaret
-app.post("/demo-user", (_req, res) => {
-  const user: User = { id: 999, name: "BrankDemo" };
-  return res.status(201).json(user);
+// Enkel endpoint som skickar 201 med en User i svaret
+// + (NYTT) sparar även i DB för att snabbt testa skriv-rättigheter
+// /demo-user – inkludera en email så den inte krockar med email-indexet
+app.post("/demo-user", async (_req, res) => {
+  const user: User = { id: 999, name: "BrankDemo", email: "brankdemo999@demo.local" };
+  try {
+    await getDB().collection("users").insertOne(user);
+    return res.status(201).json(user);
+  } catch (e) {
+    console.error("POST /demo-user insert error:", e);
+    return res.status(500).send("db error");
+  }
 });
 
 async function startServer() {
   try {
-    // Uppgift #3: starta databasen FÖRE app.listen()
+    // Starta databasen FÖRE app.listen() (uppgift #3)
     await runDB();
     app.listen(port, "0.0.0.0", () => {
       console.log(`Listening to port ${port}`);
