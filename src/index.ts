@@ -2,6 +2,7 @@ import express from "express";
 import "dotenv/config";
 import { validateSecret } from "./security/validateEnv.js";
 import { closeDB, getDB, runDB } from "./db/database.js";
+import type { Db } from "mongodb";
 
 const app = express();
 app.use(express.json());
@@ -85,6 +86,22 @@ app.post("/demo-user", async (_req, res) => {
     return res.status(500).send("db error");
   }
 });
+
+app.get("/api/v1/database/comments/:username", async (req, res) => {
+ const db: Db = getDB()
+ const result = await db
+ .collection("comments")
+ .find({ name: req.params.username }) // Mercedes Tyler
+ .limit(25)
+ .toArray()
+if (result.length === 0) {
+ res.status(404).send({ message: "Nothing was found" })
+ return
+ }
+ res.send(result)
+})
+
+
 
 async function startServer() {
   try {
